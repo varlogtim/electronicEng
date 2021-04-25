@@ -23,6 +23,77 @@
 // 3. Use the bounds from the dataset for the scale arguments of the graph.
 //
 
+/**
+ * Some more thoughts;
+ * I want the option to graph both absolute and relative resistance
+ * over the note frequency. The idea here is that depending on the
+ * resistance of voltage divider, we can get a better idea about how
+ * that frequency is affected while seeing the absolute resistance may
+ * not be as clear.
+ */
+
+
+/**
+ * Helper Functions - EE
+ */
+
+function expandMetricPrefix(value) {
+    /* Handles; 100K, 324M, 1.2u, etc... */
+    // https://en.wikipedia.org/wiki/Metric_prefix
+    const METRIC_PREFIXES = {
+        M: Math.pow(10, 6),
+        k: Math.pow(10, 3),
+        m: Math.pow(10, -3),
+        u: Math.pow(10, -6),
+        n: Math.pow(10, -9),
+        p: Math.pow(10, -12)
+    }
+
+    let multiple = 0;
+    let digit = 0;
+    let index = value.length;
+    let v = 0;
+
+    while(index--) {
+        // This looks janky... fix it.
+        if (multiple == 0) {
+            if (!isNaN(parseInt(value[index]))) {
+                multiple = 1;
+            } else {
+                if (value[index] in METRIC_PREFIXES) {
+                    multiple = METRIC_PREFIXES[value[index]];
+                    continue;
+                }
+                throw "Unknown prefix: " + value[index];
+            }
+        }
+        v += Number(value[index]) * Math.pow(10, digit++);
+    }
+    return v * multiple;
+}
+
+function capReactance(farads, frequency) {
+    return 1 / (2 * Math.PI * farads * frequency);
+}
+
+// TODO: Change to metric prefix conversion.
+function resistanceLabel(ohms) {
+    let symbol = ""
+    let unit = Math.floor((String(ohms).length - 1) / 3);
+
+    if (unit >= 2) { symbol = "M"; } 
+    else if (unit == 1) { symbol = "K"; }
+    
+    let value = ohms / Math.pow(10, ((unit * 3) - 1));
+    value = Math.round(value) / 10;
+
+    return String(value) + symbol;
+}
+
+
+/**
+ * Helper Functions - MUSIC
+ */
 
 function * genMusicalNotes() {
     // Generates all the note names and frequencies on the piano
@@ -54,7 +125,7 @@ function * genMusicalNotes() {
     }
 }
 
-function * getAENotes() {
+function * genAENotes() {
     for (const note of getNotes()) {
         // A0, E1, A1, etc...
         if (note.name.length > 2) continue;
@@ -64,37 +135,30 @@ function * getAENotes() {
     }
 }
 
-function parseCapacitorValue(value) {
-    const symbolDivisor = {
-        f: 1,
-        m: 1000,
-        u: 1000000,
-        n: 1000000000,
-        p: 1000000000000};
 
-    let farads = 0;
-    let divisor = 0;
-    let index = value.length;
-    let digit = 0;
-    while(index--) {
-        if (divisor == 0) {
-            divisor = symbolDivisor[value[index]];
-            continue;
+var MUSIC_NOTES = [];
+function getNotes() {
+    if (MUSIC_NOTES.length == 0) {
+        for (const note of genMusicalNotes()) {
+            MUSIC_NOTES.push(note);
         }
-        farads += value[index] * Math.pow(10, digit++);
     }
-    return farads / divisor;
+    return MUSIC_NOTES;
 }
 
-function capReactance(farads, frequency) {
-    return 1 / (2 * Math.PI * farads * frequency);
+function logNotes(noteFunc) {
+    for (const note of noteFunc()) {
+        console.log(note.name + "\t" + note.freq);
+    }
 }
+
+
+/**
+ * Generators
+ */
 
 function * genNotesCapReact(noteGen, farads) {
     for (const note of noteGen()) {
-        console.log(
-            "Name: " + note.name + ", freq: " + note.freq + 
-            " cap: " + capReactance(farads, note.freq));
         yield {
             name: note.name,
             freq: note.freq,
@@ -102,37 +166,78 @@ function * genNotesCapReact(noteGen, farads) {
     }
 }
 
-function testData() {
+// genData* funcs should make graphable data..
+
+
+function genDataCapReactNotes(noteGen, farads) {
+    /* Generate data for capacitive reactance across note values */
     let data = [];
-    for (const item of genNotesCapReact(getAENotes, parseCapacitorValue("1000n"))) {
+    let capVal = expandMetricPrefix(farads);
+    let gen = genNotesCapReact(noteGen, capVal);
+    for (const item of gen) {
         data.push({
             x: item.freq,
             y: item.cr,
             xLabel: item.name,
-            yLabel: item.cr
         });
     }
     return data;
 }
 
-function resistanceLabel(ohms) {
-    let symbol = ""
-    let unit = Math.floor((String(ohms).length - 1) / 3);
 
-    if (unit >= 2) { symbol = "M"; } 
-    else if (unit == 1) { symbol = "K"; }
-    
-    let value = ohms / Math.pow(10, ((unit * 3) - 1));
-    value = Math.round(value) / 10;
-
-    return String(value) + symbol;
-
+function genDataRCNotes(noteGen, ohms, farads) {
+    /**
+     * Generate data for an RC filter. 
+     * Make Y axis data a percentage of voltage.
+     */
+    let data = [];
+    let capVal = expandMetricPrefix(farads);
+    let resVal = expandMetricPrefix(ohms);
+    let gen = genNotesCapReact(noteGen, capVal);
+    for (const item of gen) {
+        let percent = Math.round((resVal * 10000) / (resVal + item.cr)) / 100
+        let decibel = 10 * Math.log10(resVal / (resVal + item.cr));
+        data.push({
+            x: item.freq,
+            y: decibel,
+            xLabel: item.name
+        });
+    }
+    return data;
 }
 
-function GGraph(height, width, xScale, yScale, data) {
-    // So ... there is a one to one relationship between the
-    // data and the graph. We could redraw the graph for height
-    // and width changes, but if the data changes, we need a new graph.
+
+function genDataCRNotes(noteGen, farads, ohms) {
+    /**
+     * Generate data for an CR filter.
+     * Make Y axis data a percentage of voltage.
+     */
+    let data = [];
+    let resVal = expandMetricPrefix(ohms);
+    let capVal = expandMetricPrefix(farads);
+    let gen = genNotesCapReact(noteGen, capVal);
+    for (const note of gen) {
+        let decibel = 10 * Math.log10(note.cr / (note.cr + resVal));
+        data.push({
+            x: note.freq,
+            y: decibel,
+            xLabel: note.name
+        });
+    }
+    return data;
+}
+
+// NOTE: The low E on the guitar starts at E2.
+
+function NotesGraph(height, width, data) {
+    /**
+     * So, this is going to be a graph for notes...
+     * After thinking about this more ... it looks like
+     * we need to measure the dBv of the filter. I guess.
+     *
+     * This means that we need to change the name of this
+     * function.
+     */
     const minHeight = 200;
     const minWidth = 300;
     const margin = {top: 20, right: 20, bottom: 20, left: 40};
@@ -141,61 +246,54 @@ function GGraph(height, width, xScale, yScale, data) {
     if (height < minHeight || width < minWidth) {
         throw "minimum height and width are: " + minHeight + "x" + minHeight;
     }
-    this.width = width;
-    this.height = height;
-    this.innerWidth = width - margin.left - margin.right;
-    this.innerHeight = height - margin.top - margin.bottom;
+    innerWidth = width - margin.left - margin.right;
+    innerHeight = height - margin.top - margin.bottom;
 
-    // !! TODO Validate data is list with {x: ??, y: ??}
-    this.data = data;
-
-    let extent = d3.extent(data);
-
-    if (typeof xScale !== 'function' || typeof yScale !== 'function') {
-        // instanceof d3.scaleLinear(), d3.scaleLog, etc...
-        throw "x/yScale args must be d3.scale*() returns";
-    }
-
-    // .domain(d3.extent(data[]))
-    this.xScale = xScale
+    let xScale = d3.scaleLog()
         .domain(d3.extent(data, function(d) {return d.x}))
         .range([margin.left, width - margin.right]);
 
-
-    this.yScale = yScale
-        .domain(d3.extent(data, function(d) {return d.y}))
+    // yScale should be DB, of voltage.
+    let yScale = d3.scaleLinear()
+        .domain([-12, 0]) //d3.extent(data, function(d) {return d.y}))
         .range([height - margin.top, margin.top]);
 
     // set x and y values for line generator
-    var line = d3.line()
-        .x(function(data, incr) { 
-            console.log("in X, incr: " + incr + ", data.x: " + data.x);
-            // return xScale(incr);
-            // return data.x
-            return this.xScale(data.x);
-        })
-        .y(function(data) {
-            return this.yScale(data.y); 
-        })
+    let line = d3.line()
+        .x(function(item, incr) { return xScale(item.x); })
+        .y(function(item) { return yScale(item.y); })
         .curve(d3.curveMonotoneX)
     
-    var svg = d3.create("svg");
+    let svg = d3.create("svg");
+
     svg.attr("width", width)
         .attr("height", height)
         .append("g");
+
+    // NOTE TO SELF: these structures are weird.
+    // I need to think about what we really want
+    // the data to require.
+    //
+    // In reality, what I need is an implementation of a
+    // generator which produces lists of specific structs.
+    // Not sure how to do this in JavaScript though.
 
     // X Axis 
     let xVals = [];
     data.forEach(item => xVals.push(item.x));
 
-    var xAxis = d3.axisBottom()
-        .scale(this.xScale)
-        .tickValues(xVals)
-        .tickSize(6)
-        .tickFormat(function(x, i) {
-            console.log("tickFormat: x: " + x + ", i: " + i);
+    xTickFormat = function(x, i) {
+        if ('xLabel' in data[i]) {
             return data[i].xLabel;
-        });
+        } else {
+            return data[i].x;
+        }
+    };
+    var xAxis = d3.axisBottom()
+        .scale(xScale)
+        .tickValues(xVals)
+        .tickSize(5)
+        .tickFormat(xTickFormat);
 
     svg.append("g")
         .attr("class", "x axis")
@@ -207,12 +305,10 @@ function GGraph(height, width, xScale, yScale, data) {
     data.forEach(item => yVals.push(item.y));
 
     let yAxis = d3.axisLeft()
-        .scale(this.yScale)
-        // .tickValues(yVals)
+        .scale(yScale)
         .tickSize(5)
         .tickFormat(function(x, i) {
-            console.log("yTickForm: " + x + ", i: " + i);
-            return resistanceLabel(x);
+            return x; //resistanceLabel(x);
         });
 
     svg.append("g")
@@ -223,10 +319,9 @@ function GGraph(height, width, xScale, yScale, data) {
 
     // 9. Append the path, bind the data, and call the line generator 
     svg.append("path")
-        .datum(this.data) // 10. Binds data to the line 
+        .datum(data) // 10. Binds data to the line 
         .attr("class", "line") // Assign a class for styling 
         .attr("d", line); // 11. Calls the line generator 
-
 
     // 12. Appends a circle for each datapoint 
     // svg.selectAll(".dot")
@@ -247,22 +342,3 @@ function GGraph(height, width, xScale, yScale, data) {
 }
 
 
-var MUSIC_NOTES = [];
-function getNotes() {
-    if (MUSIC_NOTES.length == 0) {
-        for (const note of genMusicalNotes()) {
-            MUSIC_NOTES.push(note);
-        }
-    }
-    return MUSIC_NOTES;
-}
-
-function logNotes(noteFunc) {
-    for (const note of noteFunc()) {
-        console.log(note.name + "\t" + note.freq);
-    }
-}
-
-function test() {
-    alert("This is a test");   
-}
