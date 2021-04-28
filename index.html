@@ -61,7 +61,7 @@
         <div id="my_data"></div>
         <script>
         document.addEventListener('DOMContentLoaded', function() {
-            my_func = getFilterDecibelFunc("RC", "43k", "10n");
+            my_func = getFilterDecibelFunc("RC", "43k", "1u");
             my_data = getDataNotes(genAENotes, my_func);
             my_svg = FilterDecibelNotesGraph(300, 900, my_data);
             d3.select("#my_data").append(

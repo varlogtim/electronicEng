@@ -11,7 +11,6 @@
  *
  */
 
-
 // 1. Make a graph object
 // 2. Set properties about the graph object
 // 3. Draw the graph object.
@@ -22,6 +21,7 @@
 // 2. Keep this hunk of data inside the graph object
 // 3. Use the bounds from the dataset for the scale arguments of the graph.
 //
+import * as d3 from 'd3';
 
 /**
  * Some more thoughts;
@@ -30,6 +30,7 @@
  * resistance of voltage divider, we can get a better idea about how
  * that frequency is affected while seeing the absolute resistance may
  * not be as clear.
+ *
  */
 
 
@@ -37,7 +38,7 @@
  * Helper Functions - EE
  */
 
-function expandMetricPrefix(value) {
+export function expandMetricPrefix(value) {
     /* Handles; 100K, 324M, 1.2u, etc... */
     // https://en.wikipedia.org/wiki/Metric_prefix
     const METRIC_PREFIXES = {
@@ -53,10 +54,10 @@ function expandMetricPrefix(value) {
     let digit = 0;
     let index = value.length;
     let v = 0;
-
+    
     while(index--) {
         // This looks janky... fix it.
-        if (multiple == 0) {
+        if (multiple === 0) {
             if (!isNaN(parseInt(value[index]))) {
                 multiple = 1;
             } else {
@@ -72,12 +73,12 @@ function expandMetricPrefix(value) {
     return v * multiple;
 }
 
-function capReactance(farads, frequency) {
+export function capReactance(farads, frequency) {
     return 1 / (2 * Math.PI * farads * frequency);
 }
 
 // TODO: Change to metric prefix conversion.
-function resistanceLabel(ohms) {
+export function resistanceLabel(ohms) {
     let symbol = ""
     let unit = Math.floor((String(ohms).length - 1) / 3);
 
@@ -90,7 +91,7 @@ function resistanceLabel(ohms) {
     return String(value) + symbol;
 }
 
-function precision(value, places) {
+export function precision(value, places) {
     let proddiv = Math.pow(10, places);
     return Math.round(value * proddiv) / proddiv;
 }
@@ -99,7 +100,10 @@ function precision(value, places) {
  * Helper Functions - MUSIC
  */
 
-function * genMusicalNotes() {
+// XXX: Is there a good reason for these to be generators
+// and not functions which just return the data?
+
+export function * genMusicalNotes() {
     // Generates all the note names and frequencies on the piano
     const startFreq = 27.5;     // Frequency of A0;
     const TR2 = 1.05946309436;  // 12th root of 2
@@ -120,8 +124,8 @@ function * genMusicalNotes() {
         };
 
         // There are only 3 notes in octave 0. 9 = 12 - 3
-        if ((nn + 9) % 12 == 0) octave++;
-        if (nn % 12 == 0) {
+        if ((nn + 9) % 12 === 0) octave++;
+        if (nn % 12 === 0) {
             freq = Math.pow(2, (nn / 12)) * startFreq;
         } else {
             freq = freq * TR2;
@@ -129,7 +133,7 @@ function * genMusicalNotes() {
     }
 }
 
-function * genAENotes() {
+export function * genAENotes() {
     // NOTE: The low E on the guitar starts at E2.
     for (const note of getNotes()) {
         // A0, E1, A1, etc...
@@ -140,10 +144,9 @@ function * genAENotes() {
     }
 }
 
-
 var MUSIC_NOTES = [];
-function getNotes() {
-    if (MUSIC_NOTES.length == 0) {
+export function getNotes() {
+    if (MUSIC_NOTES.length === 0) {
         for (const note of genMusicalNotes()) {
             MUSIC_NOTES.push(note);
         }
@@ -151,7 +154,7 @@ function getNotes() {
     return MUSIC_NOTES;
 }
 
-function logNotes(noteFunc) {
+export function logNotes(noteFunc) {
     for (const note of noteFunc()) {
         console.log(note.name + "\t" + note.freq);
     }
@@ -165,8 +168,8 @@ function logNotes(noteFunc) {
  *
  */
 
-function getFilterDecibelFunc(type, res, cap) {
-    if (type != "RC" && type != "CR") {
+export function getFilterDecibelFunc(type, res, cap) {
+    if (type !== "RC" && type !== "CR") {
         throw "Unknown filter type";
     }
     let resVal = expandMetricPrefix(res);
@@ -188,7 +191,7 @@ function getFilterDecibelFunc(type, res, cap) {
 // There is a subtlety here of making the frequency the X
 // data and running the function on X for the Y data.
 // ... I will leave this for now.
-function getDataNotes(noteGen, efOfX) {
+export function getDataNotes(noteGen, efOfX) {
     let data = [];
     for (const item of noteGen()) {
         data.push({
@@ -204,7 +207,7 @@ function getDataNotes(noteGen, efOfX) {
  * Graphs
  */
 
-function FilterDecibelNotesGraph(height, width, data) {
+export function FilterDecibelNotesGraph(height, width, data) {
     /**
      * Graph the decibel effect of a filter on musical notes.
      *
@@ -224,8 +227,8 @@ function FilterDecibelNotesGraph(height, width, data) {
     if (height < minHeight || width < minWidth) {
         throw "minimum height and width are: " + minHeight + "x" + minHeight;
     }
-    innerWidth = width - margin.left - margin.right;
-    innerHeight = height - margin.top - margin.bottom;
+    let innerWidth = width - margin.left - margin.right;
+    let innerHeight = height - margin.top - margin.bottom;
 
     // The note frequency is a binary logarithm scale.
     let xScale = d3.scaleLog().base(2)
@@ -255,6 +258,10 @@ function FilterDecibelNotesGraph(height, width, data) {
 
     // XXX Need to add labels for both Axis.
 
+    var tooltip = d3.select("body").append("div")   
+        .attr("class", "tooltip")               
+        .style("opacity", 0);
+
     // X Axis - Note frequency and Note Name
     let xVals = [];
     data.forEach(item => xVals.push(item.x));
@@ -269,11 +276,7 @@ function FilterDecibelNotesGraph(height, width, data) {
     svg.append("g")
         .attr("class", "x axis")
         .attr("transform", "translate(0," + (innerHeight + margin.top) + ")")
-        .call(xAxis);
-
-    var tooltip = d3.select("body").append("div")   
-        .attr("class", "tooltip")               
-        .style("opacity", 0);
+        .call(xAxis); // XXX XXX XXX Change to `height - margin.bottom`
 
     // Y Axis - Voltage Change in dB
     let yVals = [];
@@ -298,7 +301,15 @@ function FilterDecibelNotesGraph(height, width, data) {
         .attr("class", "line") // Assign a class for styling 
         .attr("d", line); // 11. Calls the line generator 
 
-    // 12. Appends a circle for each datapoint 
+    let dotSize = [4, 8];
+
+    // This looks gross and weird.
+    // I am not sure exactly what I want yet.
+    //
+    // More ideas; make a circle inside of a circle in order
+    // to increase the mouse over area of each point.
+    // Or, think about making verticle bars which, when mouse
+    // over happens, they show the hint for a particular note.
     svg.selectAll(".dot")
         .data(data)
         .enter().append("circle") // Uses the enter().append() method
@@ -310,29 +321,26 @@ function FilterDecibelNotesGraph(height, width, data) {
         .attr("class", "dot") // Assign a class for styling
         .attr("cx", (d, i) => xScale(d.x))
         .attr("cy", (d, i) => yScale(d.y))
-        .attr("r", 4)
+        .attr("r", dotSize[0])
         .on("mouseover", function(a) { 
-            // This looks gross and weird.
-            // I am not sure exactly what I want yet.
             console.log(
                 this.getAttribute("note") + "(" +
                 this.getAttribute("freq") + "Hz) " +
                 this.getAttribute("db") + ""
             );
-            this.setAttribute("r", 6);
+            this.setAttribute("r", dotSize[1]);
 
             let comment = this.getAttribute("note") + "(" +
                 this.getAttribute("freq") + "Hz) " +
                 this.getAttribute("db") + ""
             tooltip.transition().duration(200).style("opacity", .9);      
-            tooltip.html(comment)  
-                .style("left", d3.select(this).attr("cx") + "px")
-                .style("top", d3.select(this).attr("cy") + "px");
+            tooltip.html(comment)
+                .style("left", (d3.select(this).attr("cx") + 20) + "px")
+                .style("top", (d3.select(this).attr("cy") - 20) + "px");
         })
         .on("mouseout", function() {  
             tooltip.transition().duration(200).style("opacity", 0);
-            this.setAttribute("r", 4);
-            // this.querySelector(".tooltiptext").remove();
+            this.setAttribute("r", dotSize[0]);
         });
 
     // So, .node() return the actual DOM node instead of the D3 representation.
