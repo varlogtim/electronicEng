@@ -90,6 +90,10 @@ function resistanceLabel(ohms) {
     return String(value) + symbol;
 }
 
+function precision(value, places) {
+    let proddiv = Math.pow(10, places);
+    return Math.round(value * proddiv) / proddiv;
+}
 
 /**
  * Helper Functions - MUSIC
@@ -111,8 +115,8 @@ function * genMusicalNotes() {
 
     for (let nn = 1; nn <= numNotes; nn++) {
         yield {
-            name: noteNames[(nn - 1) % 12] + String(octave),
-            freq: Math.floor(freq * 100) / 100
+            name: noteNames[(nn - 1) % 12].concat(octave),
+            freq: precision(freq, 2)
         };
 
         // There are only 3 notes in octave 0. 9 = 12 - 3
@@ -126,6 +130,7 @@ function * genMusicalNotes() {
 }
 
 function * genAENotes() {
+    // NOTE: The low E on the guitar starts at E2.
     for (const note of getNotes()) {
         // A0, E1, A1, etc...
         if (note.name.length > 2) continue;
@@ -154,90 +159,63 @@ function logNotes(noteFunc) {
 
 
 /**
- * Generators
+ * Graph Data Functions.
+ *
+ * These should produce: [{x: ?, y: ?}, ...] data.
+ *
  */
 
-function * genNotesCapReact(noteGen, farads) {
-    for (const note of noteGen()) {
-        yield {
-            name: note.name,
-            freq: note.freq,
-            cr: Math.round(capReactance(farads, note.freq))};
+function getFilterDecibelFunc(type, res, cap) {
+    if (type != "RC" && type != "CR") {
+        throw "Unknown filter type";
+    }
+    let resVal = expandMetricPrefix(res);
+    let capVal = expandMetricPrefix(cap);
+
+    return function(freq) {
+        let capReact = capReactance(capVal, freq);
+        let numerator = resVal;
+        if (type == "CR") numerator = capReact;
+
+        let voltDiv = numerator / (resVal + capReact);
+        let decibel = 10 * Math.log10(voltDiv);
+
+        return precision(decibel, 2);
     }
 }
 
-// genData* funcs should make graphable data..
-
-
-function genDataCapReactNotes(noteGen, farads) {
-    /* Generate data for capacitive reactance across note values */
+// I feel like this could be more generic.
+// There is a subtlety here of making the frequency the X
+// data and running the function on X for the Y data.
+// ... I will leave this for now.
+function getDataNotes(noteGen, efOfX) {
     let data = [];
-    let capVal = expandMetricPrefix(farads);
-    let gen = genNotesCapReact(noteGen, capVal);
-    for (const item of gen) {
+    for (const item of noteGen()) {
         data.push({
             x: item.freq,
-            y: item.cr,
-            xLabel: item.name,
-        });
-    }
-    return data;
-}
-
-
-function genDataRCNotes(noteGen, ohms, farads) {
-    /**
-     * Generate data for an RC filter. 
-     * Make Y axis data a percentage of voltage.
-     */
-    let data = [];
-    let capVal = expandMetricPrefix(farads);
-    let resVal = expandMetricPrefix(ohms);
-    let gen = genNotesCapReact(noteGen, capVal);
-    for (const item of gen) {
-        let percent = Math.round((resVal * 10000) / (resVal + item.cr)) / 100
-        let decibel = 10 * Math.log10(resVal / (resVal + item.cr));
-        data.push({
-            x: item.freq,
-            y: decibel,
+            y: efOfX(item.freq),
             xLabel: item.name
         });
     }
     return data;
 }
 
+/**
+ * Graphs
+ */
 
-function genDataCRNotes(noteGen, farads, ohms) {
+function FilterDecibelNotesGraph(height, width, data) {
     /**
-     * Generate data for an CR filter.
-     * Make Y axis data a percentage of voltage.
-     */
-    let data = [];
-    let resVal = expandMetricPrefix(ohms);
-    let capVal = expandMetricPrefix(farads);
-    let gen = genNotesCapReact(noteGen, capVal);
-    for (const note of gen) {
-        let decibel = 10 * Math.log10(note.cr / (note.cr + resVal));
-        data.push({
-            x: note.freq,
-            y: decibel,
-            xLabel: note.name
-        });
-    }
-    return data;
-}
-
-// NOTE: The low E on the guitar starts at E2.
-
-function NotesGraph(height, width, data) {
-    /**
-     * So, this is going to be a graph for notes...
-     * After thinking about this more ... it looks like
-     * we need to measure the dBv of the filter. I guess.
+     * Graph the decibel effect of a filter on musical notes.
      *
-     * This means that we need to change the name of this
-     * function.
+     * Data should be [{x: freq, y: decibel, xLabel: noteName}, ... ]
+     *
+     * Think about making grey grid lines on graph.
+     * Maybe some mouse over items and distinguish the -3dB point?
+     *
      */
+
+    // XXX: Define const's somewhere else?
     const minHeight = 200;
     const minWidth = 300;
     const margin = {top: 20, right: 20, bottom: 20, left: 40};
@@ -249,19 +227,24 @@ function NotesGraph(height, width, data) {
     innerWidth = width - margin.left - margin.right;
     innerHeight = height - margin.top - margin.bottom;
 
-    let xScale = d3.scaleLog()
+    // The note frequency is a binary logarithm scale.
+    let xScale = d3.scaleLog().base(2)
         .domain(d3.extent(data, function(d) {return d.x}))
         .range([margin.left, width - margin.right]);
 
-    // yScale should be DB, of voltage.
+    // The Y axis is given as the decibel value which is already a common log
+    // we need to keep the scale as linear. I think ... 
     let yScale = d3.scaleLinear()
         .domain([-12, 0]) //d3.extent(data, function(d) {return d.y}))
         .range([height - margin.top, margin.top]);
+    // Also, we need to decide what an appropriate range is ...
+    // At some point in the future, I will likely have data which shows
+    // an active filter that results in a dBv gain.
 
     // set x and y values for line generator
     let line = d3.line()
         .x(function(item, incr) { return xScale(item.x); })
-        .y(function(item) { return yScale(item.y); })
+        .y(function(item, incr) { return yScale(item.y); })
         .curve(d3.curveMonotoneX)
     
     let svg = d3.create("svg");
@@ -270,52 +253,44 @@ function NotesGraph(height, width, data) {
         .attr("height", height)
         .append("g");
 
-    // NOTE TO SELF: these structures are weird.
-    // I need to think about what we really want
-    // the data to require.
-    //
-    // In reality, what I need is an implementation of a
-    // generator which produces lists of specific structs.
-    // Not sure how to do this in JavaScript though.
+    // XXX Need to add labels for both Axis.
 
-    // X Axis 
+    // X Axis - Note frequency and Note Name
     let xVals = [];
     data.forEach(item => xVals.push(item.x));
 
-    xTickFormat = function(x, i) {
-        if ('xLabel' in data[i]) {
-            return data[i].xLabel;
-        } else {
-            return data[i].x;
-        }
-    };
+    let getXLabel = (d, i) => data[i].xLabel; 
     var xAxis = d3.axisBottom()
         .scale(xScale)
         .tickValues(xVals)
         .tickSize(5)
-        .tickFormat(xTickFormat);
+        .tickFormat(getXLabel);
 
     svg.append("g")
         .attr("class", "x axis")
         .attr("transform", "translate(0," + (innerHeight + margin.top) + ")")
         .call(xAxis);
 
-    // Y Axis
+    var tooltip = d3.select("body").append("div")   
+        .attr("class", "tooltip")               
+        .style("opacity", 0);
+
+    // Y Axis - Voltage Change in dB
     let yVals = [];
     data.forEach(item => yVals.push(item.y));
+
+    let getYLabel = (d, i) => String(d).concat("dB");
 
     let yAxis = d3.axisLeft()
         .scale(yScale)
         .tickSize(5)
-        .tickFormat(function(x, i) {
-            return x; //resistanceLabel(x);
-        });
+        .tickFormat(getYLabel);
 
     svg.append("g")
         .attr("class", "y axis")
         .attr("transform", "translate(" + margin.left + ",0)")
         .call(yAxis);
-    // Create an axis component with d3.axisLeft
+
 
     // 9. Append the path, bind the data, and call the line generator 
     svg.append("path")
@@ -324,18 +299,41 @@ function NotesGraph(height, width, data) {
         .attr("d", line); // 11. Calls the line generator 
 
     // 12. Appends a circle for each datapoint 
-    // svg.selectAll(".dot")
-    //     .data(data)
-    //   .enter().append("circle") // Uses the enter().append() method
-    //     .attr("class", "dot") // Assign a class for styling
-    //     .attr("cx", function(d, i) { return xScale(d.x) })
-    //     .attr("cy", function(d) { return yScale(d.y) })
-    //     .attr("r", 5)
-    //       .on("mouseover", function(a, b, c) { 
-    //             console.log(a) 
-    //         this.attr('class', 'focus')
-    //         })
-    //       .on("mouseout", function() {  });
+    svg.selectAll(".dot")
+        .data(data)
+        .enter().append("circle") // Uses the enter().append() method
+        // Storing data here. Not sure this is the best?
+        .attr("note", (d, i) => getXLabel(d, i))
+        .attr("freq", (d, i) => d.x)
+        .attr("db", (d, i) => getYLabel(d.y, i))
+        // Display elements.
+        .attr("class", "dot") // Assign a class for styling
+        .attr("cx", (d, i) => xScale(d.x))
+        .attr("cy", (d, i) => yScale(d.y))
+        .attr("r", 4)
+        .on("mouseover", function(a) { 
+            // This looks gross and weird.
+            // I am not sure exactly what I want yet.
+            console.log(
+                this.getAttribute("note") + "(" +
+                this.getAttribute("freq") + "Hz) " +
+                this.getAttribute("db") + ""
+            );
+            this.setAttribute("r", 6);
+
+            let comment = this.getAttribute("note") + "(" +
+                this.getAttribute("freq") + "Hz) " +
+                this.getAttribute("db") + ""
+            tooltip.transition().duration(200).style("opacity", .9);      
+            tooltip.html(comment)  
+                .style("left", d3.select(this).attr("cx") + "px")
+                .style("top", d3.select(this).attr("cy") + "px");
+        })
+        .on("mouseout", function() {  
+            tooltip.transition().duration(200).style("opacity", 0);
+            this.setAttribute("r", 4);
+            // this.querySelector(".tooltiptext").remove();
+        });
 
     // So, .node() return the actual DOM node instead of the D3 representation.
     return svg;

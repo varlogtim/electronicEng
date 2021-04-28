@@ -11,8 +11,8 @@
 /* Style the lines by removing the fill and applying a stroke */
 .line {
     fill: none;
-    stroke: #ffab00;
-    stroke-width: 3;
+    stroke: #efab00;
+    stroke-width: 2;
 }
 
 .overlay {
@@ -30,6 +30,29 @@
   fill: none;
   stroke: steelblue;
 }
+
+
+/**
+ * Mouse over stuff...
+ */
+
+/* Tooltip container */
+.tooltip {
+  position: absolute;
+  display: inline-block;
+  /* border-bottom: 1px dotted black; /* If you want dots under the hoverable text */
+  text-align: center;
+  width: 120px;
+  /* height: 28px; */
+  padding: 10px;
+  font: 12px sans-serif;
+  background: lightsteelblue;
+  border: 0px;
+  border-radius: 8px;
+  pointer-events: none;
+}
+
+
 </style>
 
     </head>
@@ -38,11 +61,9 @@
         <div id="my_data"></div>
         <script>
         document.addEventListener('DOMContentLoaded', function() {
-            my_svg = NotesGraph(300, 900, genDataCapReactNotes(genAENotes, "100n"));
-            my_svg = NotesGraph(300, 900, genDataRCNotes(
-                            genAENotes, "43k", "100n"));
-            my_svg = NotesGraph(300, 900, genDataCRNotes(
-                            genAENotes, "4n", "43k"));
+            my_func = getFilterDecibelFunc("RC", "43k", "10n");
+            my_data = getDataNotes(genAENotes, my_func);
+            my_svg = FilterDecibelNotesGraph(300, 900, my_data);
             d3.select("#my_data").append(
                 function() { return my_svg.node(); });
         });
