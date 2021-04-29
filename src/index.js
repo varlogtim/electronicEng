@@ -4,97 +4,44 @@ import './index.css';
 import * as EE from './electronicEng.js';
 import * as d3 from 'd3';
 
-class Test extends React.Component {
-    render() {
-        const message = "This is a test";
-        return (
-            <div class="test">{message}</div>
-        );
-    }
-}
 
-
-class TestGraph extends React.Component {
-    // XXX: Define const's somewhere else?
-
-    // drawLine() {
-    //     const minHeight = 200;
-    //     const minWidth = 300;
-    //     const margin = {top: 20, right: 20, bottom: 20, left: 40};
-
-    //     // The note frequency is a binary logarithm scale.
-    //     let xScale = d3.scaleLog().base(2)
-    //         .domain(d3.extent(data, function(d) {return d.x}))
-    //         .range([margin.left, width - margin.right]);
-
-    //     // The Y axis is given as the decibel value which is already a common log
-    //     // we need to keep the scale as linear. I think ... 
-    //     let yScale = d3.scaleLinear()
-    //         .domain([-12, 0]) //d3.extent(data, function(d) {return d.y}))
-    //         .range([height - margin.top, margin.top]);
-    //     // Also, we need to decide what an appropriate range is ...
-    //     // At some point in the future, I will likely have data which shows
-    //     // an active filter that results in a dBv gain.
-
-    //     let line = d3.line()
-    //         .x(function(item, incr) { return xScale(item.x); })
-    //         .y(function(item, incr) { return yScale(item.y); })
-    //         .curve(d3.curveMonotoneX)
-        
-    //     return (
-    //         <path className="line" d={line(this.props.data)} />
-    //     );
-        
-    // }
-
-    render() {
-        const width = 900;
-        const height = 300;
-        const farads = "1u";
-        const ohms = "43k";
-        const my_func = EE.getFilterDecibelFunc("RC", ohms, farads);
-        const my_data = EE.getDataNotes(EE.genAENotes, my_func);
-        const my_svg = EE.FilterDecibelNotesGraph(height, width, my_data);
-        return <svg ref={my_svg} width={width} height={height}>{my_svg.node()}</svg>
-        //<div class="foo">{my_svg}</div>
-    }
-}
-
-
-class NewTest extends React.Component {
+class DecibelFilterGraph extends React.Component {
+    // https://aspenmesh.io/using-d3-in-react-a-pattern-for-using-data-visualization-at-scale/
+    // Giving D3 DOM control when we reload.
     constructor(props) {
         super(props);
 
-        const farads = "10n";
-        const ohms = "43k";
-        const my_func = EE.getFilterDecibelFunc("RC", ohms, farads);
-        const my_data = EE.getDataNotes(EE.genAENotes, my_func);
-        this.state = {
-            data: my_data,
-            width: 900,
-            height: 500,
-            margin: {top: 20, right: 20, bottom: 20, left: 40}
-        };
-
-        for (const item of this.state.data) {
-            console.log(
-                "item: x: " + item.x + ", y: " + item.y + 
-                ", xLabel: " + item.xLabel);
+        if (!props.width) {
+            // XXX There is a prop-types library to use here.
+            console.error("Width must be specified");
         }
+        console.log("Graph Constructor");
+
+        this.state = {
+            margin: {top: 20, right: 20, bottom: 20, left: 40},
+            width: props.width,
+            height: props.height,
+            data: props.data
+        };
+    }
+    componentWillReceiveProps(nextProps) {
+        this.setState(nextProps)
     }
 
     componentDidMount() {
+        // https://reactjs.org/docs/state-and-lifecycle.html
         this.createSvgContainer();
     }
 
     componentDidUpdate() {
+        // this.setState({ data: my_data });
         this.createSvgContainer();
     }
 
     createSvgContainer() {
-        let svg = this.svg;
-
-        d3.select(svg)
+        console.log("SVG CONTAINER CREATE");
+        // Set Bounds
+        d3.select(this.svg)
             .attr("width", this.state.width)
             .attr("height", this.state.height)
             .append("g");
@@ -115,11 +62,16 @@ class NewTest extends React.Component {
             .y(function(item, incr) { return yScale(item.y); })
             .curve(d3.curveMonotoneX)
 
-        d3.select(svg)
+        // So, we need to determine what we should redraw.
+        d3.select(this.svg).selectAll("path").remove();
+        d3.select(this.svg)
             .append("path")
-            .datum(this.state.data) // 10. Binds data to the line 
-            .attr("class", "line") // Assign a class for styling 
-            .attr("d", line); // 11. Calls the line generator 
+            .datum(this.state.data)
+            .attr("class", "line")
+            .attr("d", line);
+
+        // Remove axes
+        d3.select(this.svg).selectAll("g").remove();
 
         // Draw X Axis
         let xVals = [];
@@ -132,7 +84,7 @@ class NewTest extends React.Component {
             .tickSize(5)
             .tickFormat(getXLabel);
 
-        d3.select(svg).append("g")
+        d3.select(this.svg).append("g")
             .attr("class", "x axis")
             .attr("transform", "translate(0," + 
                 (this.state.height - this.state.margin.bottom) + ")")
@@ -149,7 +101,7 @@ class NewTest extends React.Component {
             .tickSize(5)
             .tickFormat(getYLabel);
 
-        d3.select(svg).append("g")
+        d3.select(this.svg).append("g")
             .attr("class", "y axis")
             .attr("transform", "translate(" + this.state.margin.left + ",0)")
             .call(yAxis);
@@ -158,19 +110,106 @@ class NewTest extends React.Component {
 
     render() {
         return (
-            <div /*style={{width: "300px" }}*/ >
-                <svg ref={svg => (this.svg = svg)}></svg>
-                {/* SVG DOM node set as ref to use with React */}
+            <div /*style={{width: "300px" }}*/>
+            {/* https://reactjs.org/docs/refs-and-the-dom.html#callback-refs */}
+                <svg 
+                    ref={svg => this.svg = svg}
+                ></svg>
             </div>
         );
     }
 }
 
+class DecibelFilterGraphControlPanel extends React.Component {
+    constructor(props) {
+        super(props);
+        
+        // maybe this should be default.
+        const farads = "47n";
+        const ohms = "43k";
+        const func = EE.getFilterDecibelFunc("RC", ohms, farads);
+        const data = EE.getDataNotes(EE.genAENotes, func);
+
+        this.state = {
+            graphWidth: props.width,
+            graphHeight: props.height,
+            farads: farads,
+            ohms: ohms,
+            data: data,
+            errorMessage: "No error"
+        };
+
+    }
+
+    componentDidMount() {
+
+    }
+
+    // updateFarads(farads) {
+    //     // this.state.farads = farads;
+    //     this.state.farads = farads;
+    // }
+
+    handleInputChange(e) {
+        let farads = e.target.value;
+        // Validate value
+        // this.state.farads = farads;
+        try {
+            const my_func = EE.getFilterDecibelFunc(
+                "RC", this.state.ohms, farads);
+            const my_data = EE.getDataNotes(EE.genAENotes, my_func);
+
+            this.setState({
+                farads: farads,
+                data: my_data,
+                errorMessage: ""
+            });
+        } catch (e) {
+            console.log(e.message);
+            this.setState({
+                errorMessage: e.message
+            });
+        }
+        console.log("Input changed: " + this.state.farads);
+    }
+
+
+    handleWidthChange(e) {
+        let width = e.target.value;
+        this.setState({ graphWidth: width });
+    }
+    
+    render() {
+        return (
+            <div className="controlPanel">
+                <span className="title">This is a title</span>
+                <input type="text" value={this.state.farads}
+                    onChange={e => this.handleInputChange(e)}
+                ></input>
+                <button text="foo"
+                    onClick={(div) => console.dir(div)}
+                >Click Me</button>
+                <span className="label">Width:</span>
+                <input type="text" value={this.state.width}
+                    onChange={e => this.handleWidthChange(e)}></input>
+
+                <div id="graph"></div>
+                <DecibelFilterGraph
+                    height={this.state.graphHeight}
+                    width={this.state.graphWidth}
+                    farads={this.state.farads}
+                    ohms={this.state.ohms}
+                    data={this.state.data}
+                />
+                <div id="errorMessage">{this.state.errorMessage}</div>
+            </div>
+        );
+    }
+}
 
 ReactDOM.render(
-    // <Test/>, document.querySelector('#root')
-    <NewTest/>, document.querySelector('#root')
-    // <BarChart w=400 
+    <DecibelFilterGraphControlPanel width={900} height={300} />,
+    document.querySelector('#root')
 );
 
 
