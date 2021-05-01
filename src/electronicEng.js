@@ -65,7 +65,7 @@ export function expandMetricPrefix(value) {
                     multiple = METRIC_PREFIXES[value[index]];
                     continue;
                 }
-                throw "Unknown prefix: " + value[index];
+                throw new InputError("Unknown prefix: " + value[index]);
             }
         }
         v += Number(value[index]) * Math.pow(10, digit++);
@@ -83,7 +83,7 @@ export function resistanceLabel(ohms) {
     let unit = Math.floor((String(ohms).length - 1) / 3);
 
     if (unit >= 2) { symbol = "M"; } 
-    else if (unit == 1) { symbol = "K"; }
+    else if (unit === 1) { symbol = "K"; }
     
     let value = ohms / Math.pow(10, ((unit * 3) - 1));
     value = Math.round(value) / 10;
@@ -168,9 +168,14 @@ export function logNotes(noteFunc) {
  *
  */
 
+function InputError(message) {
+    this.message = message;
+    console.error("ERR: " + message);
+}
+
 export function getFilterDecibelFunc(type, res, cap) {
     if (type !== "RC" && type !== "CR") {
-        throw "Unknown filter type";
+        throw new InputError("Unknown filter type");
     }
     let resVal = expandMetricPrefix(res);
     let capVal = expandMetricPrefix(cap);
@@ -178,7 +183,7 @@ export function getFilterDecibelFunc(type, res, cap) {
     return function(freq) {
         let capReact = capReactance(capVal, freq);
         let numerator = resVal;
-        if (type == "CR") numerator = capReact;
+        if (type === "CR") numerator = capReact;
 
         let voltDiv = numerator / (resVal + capReact);
         let decibel = 10 * Math.log10(voltDiv);
@@ -225,10 +230,9 @@ export function FilterDecibelNotesGraph(height, width, data) {
 
     // check args:
     if (height < minHeight || width < minWidth) {
-        throw "minimum height and width are: " + minHeight + "x" + minHeight;
+        throw new InputError(
+            "minimum height and width are: " + minHeight + "x" + minHeight);
     }
-    let innerWidth = width - margin.left - margin.right;
-    let innerHeight = height - margin.top - margin.bottom;
 
     // The note frequency is a binary logarithm scale.
     let xScale = d3.scaleLog().base(2)
@@ -275,7 +279,7 @@ export function FilterDecibelNotesGraph(height, width, data) {
 
     svg.append("g")
         .attr("class", "x axis")
-        .attr("transform", "translate(0," + (innerHeight + margin.top) + ")")
+        .attr("transform", "translate(0," + (height - margin.bottom) + ")")
         .call(xAxis); // XXX XXX XXX Change to `height - margin.bottom`
 
     // Y Axis - Voltage Change in dB

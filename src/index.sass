@@ -1,0 +1,36 @@
+@tailwind base
+@tailwind components
+@tailwind utilities
+
+$color-background: #fefefe
+$color-foreground: #2b2b2b
+$color-accent-yel: #dfdf00
+$color-accent-org: #efab00FF
+$color-accent-red: #ef3b3b
+$test: darken($color-accent-yel, 1%)
+
+body
+    background: darken($color-background, 0%)
+    color: darken($color-foreground, 0%)
+
+#errorMessage
+    color: $color-accent-red
+
+.line
+    fill: none
+    // stroke: darken($color-accent-org, 1%)
+    stroke: $color-accent-org
+    stroke-width: 2
+
+.overlay
+    fill: none
+    pointer-events: all
+
+/* Style the dots by assigning a fill and stroke */
+.dot
+    fill: #ffab00
+    stroke: #fff
+
+.focus circle
+    fill: none
+    stroke: steelblue
