@@ -55,28 +55,29 @@ export function expandMetricPrefix(value) {
         n: Math.pow(10, -9),
         p: Math.pow(10, -12)
     }
+    // This should probably be external to funcion.
+    // Probably need another function which takes a non-prefixed
+    // number and makes it into a prefixed number.
 
-    let multiple = 0;
-    let digit = 0;
     let index = value.length;
+    let lastChar = value.substring(index - 1)
+    let multiple = 1;
     let v = 0;
-    
-    while(index--) {
-        // This looks janky... fix it.
-        if (multiple === 0) {
-            if (!isNaN(parseInt(value[index]))) {
-                multiple = 1;
-            } else {
-                if (value[index] in METRIC_PREFIXES) {
-                    multiple = METRIC_PREFIXES[value[index]];
-                    continue;
-                }
-                throw new InputError("Unknown prefix: " + value[index]);
-            }
+
+    if (isNaN(parseInt(lastChar))) {
+        if (!(lastChar in METRIC_PREFIXES)) {
+            throw new InputError("Unknown prefix: " + lastChar);
         }
-        v += Number(value[index]) * Math.pow(10, digit++);
+        multiple = METRIC_PREFIXES[lastChar];
+        index -= 1;
     }
-    return v * multiple;
+
+    v = value.substring(0, index);
+    if (isNaN(Number(v))) {
+        throw new InputError("Unknown number: " + v);
+    }
+    
+    return Number(v) * multiple;
 }
 
 export function capReactance(farads, frequency) {
