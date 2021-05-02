@@ -35,6 +35,12 @@ import * as d3 from 'd3';
 
 
 /**
+ * BUGS
+ * - Decimal values don't work. E.g. 4.7u
+ */
+
+
+/**
  * Helper Functions - EE
  */
 

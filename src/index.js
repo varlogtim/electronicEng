@@ -41,10 +41,14 @@ class DecibelFilterGraph extends React.Component {
     createSvgContainer() {
         console.log("SVG CONTAINER CREATE");
         // Set Bounds
+        // https://blog.logrocket.com/make-any-svg-responsive-with-this-react-component/
+        let viewBox = [0, 0, this.state.width, this.state.height];
+
         d3.select(this.svg)
-            .attr("width", this.state.width)
-            .attr("height", this.state.height)
-            .append("g");
+            .attr("viewBox", viewBox.join(" "));
+            // .attr("width", this.state.width)
+            // .attr("height", this.state.height)
+            // .append("g");
 
         // Draw line:
         let xScale = d3.scaleLog().base(2)
@@ -131,24 +135,18 @@ class DecibelFilterGraphControlPanel extends React.Component {
         const data = EE.getDataNotes(EE.genAENotes, func);
 
         this.state = {
-            graphWidth: props.width,
-            graphHeight: props.height,
             farads: farads,
             ohms: ohms,
             data: data,
-            errorMessage: "No error"
+            errorMessage: "No error",
+            dimensions: null
         };
 
     }
 
-    componentDidMount() {
+    componentDidMount() {}
 
-    }
-
-    // updateFarads(farads) {
-    //     // this.state.farads = farads;
-    //     this.state.farads = farads;
-    // }
+    componentDidUpdate() {}
 
     handleInputChange(e) {
         let farads = e.target.value;
@@ -174,41 +172,72 @@ class DecibelFilterGraphControlPanel extends React.Component {
     }
 
 
-    handleWidthChange(e) {
-        let width = e.target.value;
-        this.setState({ graphWidth: width });
-    }
-    
     render() {
         return (
-            <div className="controlPanel">
-                <span className="title">This is a title</span>
-                <input type="text" value={this.state.farads}
+            <div
+                className={`
+                    p-4
+                    p-4 m-4 border-2
+                    items-center space-x-4`}
+            >
+                <span className="title">Farads:</span>
+                <input 
+                    className="textfield"
+                    type="text" value={this.state.farads}
                     onChange={e => this.handleInputChange(e)}
                 ></input>
-                <button text="foo"
-                    onClick={(div) => console.dir(div)}
-                >Click Me</button>
-                <span className="label">Width:</span>
-                <input type="text" value={this.state.width}
-                    onChange={e => this.handleWidthChange(e)}></input>
-
-                <div id="graph"></div>
-                <DecibelFilterGraph
-                    height={this.state.graphHeight}
-                    width={this.state.graphWidth}
-                    farads={this.state.farads}
-                    ohms={this.state.ohms}
-                    data={this.state.data}
-                />
-                <div id="errorMessage">{this.state.errorMessage}</div>
+                <span className="label">Ohms:</span>
+                <input className="textfield"
+                    type="text" value={this.state.width}
+                    onChange={e => this.handleInputChange(e)}></input>
+                <div className="justift-start flex p-4 boarder-1">
+                    <div className={`text
+                        w-1/3 
+                        p-4 m-4 border-2
+                        `}>
+                    This is like something for the paper.. Umm.. Yeah... 
+                    This is like something for the paper.. Umm.. Yeah... 
+                    This is like something for the paper.. Umm.. Yeah... 
+                    This is like something for the paper.. Umm.. Yeah... 
+                    This is like something for the paper.. Umm.. Yeah... 
+                    This is like something for the paper.. Umm.. Yeah... 
+                    </div>
+                    <div className={`
+                        w-2/3
+                        p-4 m-4 border-2
+                        `}>
+                        <DecibelFilterGraph
+                            height={300}
+                            width={900}
+                            farads={this.state.farads}
+                            ohms={this.state.ohms}
+                            data={this.state.data}
+                        />
+                    </div>
+                </div>
+            {/*<div id="errorMessage">{this.state.errorMessage}</div>*/}
             </div>
         );
     }
 }
 
+class PageBase extends React.Component {
+    
+    render() {
+        return (
+            <div className="w-9/12">
+                <div className="w-100 bg-gray-500 h-16 shadow-xl p-4">
+                    <div>Menu</div>
+                </div>
+                <DecibelFilterGraphControlPanel width={900} height={300} />
+            </div>
+        );
+    }
+}
+
+
 ReactDOM.render(
-    <DecibelFilterGraphControlPanel width={900} height={300} />,
+    <PageBase />,
     document.querySelector('#root')
 );
 
