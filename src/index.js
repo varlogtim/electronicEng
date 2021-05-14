@@ -15,7 +15,6 @@ class DecibelFilterGraph extends React.Component {
             // XXX There is a prop-types library to use here.
             console.error("Width must be specified");
         }
-        console.log("Graph Constructor");
 
         this.state = {
             margin: {top: 5, right: 10, bottom: 15, left: 35},
@@ -128,20 +127,22 @@ class DecibelFilterGraphControlPanel extends React.Component {
     constructor(props) {
         super(props);
         
-        // maybe this should be default.
-        let func = EE.getFilterDecibelFunc(props.type, props.ohms, props.farads);
-        let data = EE.getDataNotes(EE.genAENotes, func);
-        // XXX This can throw an exception!!!
-        // could we possibly call setNewData()?
-
         this.state = {
             farads: props.farads,
             ohms: props.ohms,
-            data: data,
             type: props.type,
             errorMessage: "",
+            data: null,
             dimensions: null
         };
+
+        let state = this.state;
+        this.setNewData(state);
+        // ^ this seems like a strange pattern.
+        // What I need is to hook into pre-update of the component
+        // and make sure that I reprocess the data before we redraw.
+        //
+        // I guess I will think about this more later.
 
     }
 
@@ -184,12 +185,12 @@ class DecibelFilterGraphControlPanel extends React.Component {
         <div className="block p-2" onChange={e => this.onFilterChange(e)}>
             <input className="inline space-x-4"
                 type="radio" value="RC" name="type" 
-                checked={this.state.type === "RC"}
-            /><span className="p-1">RC Filter</span>
+                checked={this.state.type === "RC"} />
+            <span className="p-1">RC Filter</span>
             <input className="inline"
                 type="radio" value="CR" name="type"
-                checked={this.state.type === "CR"}
-            /><span className="p-1">CR Filter</span>
+                checked={this.state.type === "CR"} />
+            <span className="p-1">CR Filter</span>
         </div>
         <div className="inline p-2">
             <input 
@@ -209,9 +210,7 @@ class DecibelFilterGraphControlPanel extends React.Component {
         </div>
     </div>
     <div className={`
-        w-1/3
-        p-0 border
-        flex-auto
+        w-1/2 p-0 border flex-auto
         `}>
         <DecibelFilterGraph
             height={300}
@@ -227,7 +226,6 @@ class DecibelFilterGraphControlPanel extends React.Component {
 }
 
 class PageBase extends React.Component {
-    
     render() {
         return (
             <div className="w-9/12 bg-white">
