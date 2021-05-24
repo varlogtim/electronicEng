@@ -2,7 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom';
 import './index.css';
 import * as FilterGraphs from './filter_graph.js';
-
+import * as TransistorGain from './transistor_gain.js';
 
 class PageBase extends React.Component {
     render() {
@@ -11,6 +11,7 @@ class PageBase extends React.Component {
                 <div className="w-100 bg-gray-500 h-16 shadow-xl p-4">
                     <div>Menu</div>
                 </div>
+            {/*
                 <FilterGraphs.DecibelFilterGraphControlPanel 
                     type="RC"
                     farads="100n"
@@ -18,6 +19,8 @@ class PageBase extends React.Component {
                     width={900}
                     height={300} 
                 />
+             */}
+                <TransistorGain.PNPTransistorGainCalculator />
             </div>
         );
     }

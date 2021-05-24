@@ -34,10 +34,41 @@ import * as d3 from 'd3';
  */
 
 
-/**
- * BUGS
- * - Decimal values don't work. E.g. 4.7u
- */
+// There are possibly better structs to use here.
+const METRIC_PREFIX_2_EXPONENT = {
+    "Y": 24,
+    "Z": 21,
+    "E": 18,
+    "P": 15,
+    "T": 12,
+    "G": 9,
+    "M": 6,
+    "k": 3,
+    "": 0,
+    "m": -3,
+    "u": -6,
+    "n": -9,
+    "p": -12,
+    "f": -15,
+    "a": -18,
+    "z": -21,
+    "y": -24
+};
+
+let _metric_exponent_2_prefix = {};
+for (const [prefix, exponent] of Object.entries(METRIC_PREFIX_2_EXPONENT)) {
+    _metric_exponent_2_prefix[exponent] = prefix;
+}
+const METRIC_EXPONENT_2_PREFIX = _metric_exponent_2_prefix;
+
+let _metric_max_exponent = Number.MIN_VALUE;
+let _metric_min_exponent = Number.MAX_VALUE;
+for (const exponent of Object.values(METRIC_PREFIX_2_EXPONENT)) {
+    if (exponent > _metric_max_exponent) _metric_max_exponent = exponent;
+    if (exponent < _metric_min_exponent) _metric_min_exponent = exponent;
+}
+const METRIC_MAX_EXPONENT = _metric_max_exponent;
+const METRIC_MIN_EXPONENT = _metric_min_exponent;
 
 
 /**
@@ -47,17 +78,6 @@ import * as d3 from 'd3';
 export function expandMetricPrefix(value) {
     /* Handles; 100K, 324M, 1.2u, etc... */
     // https://en.wikipedia.org/wiki/Metric_prefix
-    const METRIC_PREFIXES = {
-        M: Math.pow(10, 6),
-        k: Math.pow(10, 3),
-        m: Math.pow(10, -3),
-        u: Math.pow(10, -6),
-        n: Math.pow(10, -9),
-        p: Math.pow(10, -12)
-    }
-    // This should probably be external to funcion.
-    // Probably need another function which takes a non-prefixed
-    // number and makes it into a prefixed number.
 
     let index = value.length;
     let lastChar = value.substring(index - 1)
@@ -65,10 +85,10 @@ export function expandMetricPrefix(value) {
     let v = 0;
 
     if (isNaN(parseInt(lastChar))) {
-        if (!(lastChar in METRIC_PREFIXES)) {
-            throw new InputError("Unknown prefix: " + lastChar);
+        if (!(lastChar in METRIC_PREFIX_2_EXPONENT)) {
+            throw new InputError("Unknown prefix: ".concat(lastChar));
         }
-        multiple = METRIC_PREFIXES[lastChar];
+        multiple = Math.pow(10, METRIC_PREFIX_2_EXPONENT[lastChar]);
         index -= 1;
     }
 
@@ -78,6 +98,31 @@ export function expandMetricPrefix(value) {
     }
     
     return Number(v) * multiple;
+}
+
+export function addMetricPrefix(value) {
+    const step = 3; // Could be METRIC_STEP global.
+    let exponent = 0;
+
+    if(isNaN(Number(value))) {
+        throw new InputError("Unknown number: ".concat(value));
+    }
+
+    if (value === 0) {
+        return value;
+    } else if (value < 1) {
+        while (value < 1 && exponent > METRIC_MIN_EXPONENT) {
+            exponent -= step;
+            value *= Math.pow(10, step);
+        }
+    } else if (value >= Math.pow(10, step)) { // XXX test this.
+        while (value >= Math.pow(10, step) && exponent < METRIC_MAX_EXPONENT) {
+            exponent += step;
+            value /= Math.pow(10, step);
+        }
+    }
+    let number_str = String(precision(value, 2));
+    return number_str.concat(METRIC_EXPONENT_2_PREFIX[exponent]);
 }
 
 export function capReactance(farads, frequency) {
@@ -214,148 +259,4 @@ export function getDataNotes(noteGen, efOfX) {
     }
     return data;
 }
-
-/**
- * Graphs
- */
-
-export function FilterDecibelNotesGraph(height, width, data) {
-    /**
-     * Graph the decibel effect of a filter on musical notes.
-     *
-     * Data should be [{x: freq, y: decibel, xLabel: noteName}, ... ]
-     *
-     * Think about making grey grid lines on graph.
-     * Maybe some mouse over items and distinguish the -3dB point?
-     *
-     */
-
-    // XXX: Define const's somewhere else?
-    const minHeight = 200;
-    const minWidth = 300;
-    const margin = {top: 20, right: 20, bottom: 20, left: 40};
-
-    // check args:
-    if (height < minHeight || width < minWidth) {
-        throw new InputError(
-            "minimum height and width are: " + minHeight + "x" + minHeight);
-    }
-
-    // The note frequency is a binary logarithm scale.
-    let xScale = d3.scaleLog().base(2)
-        .domain(d3.extent(data, function(d) {return d.x}))
-        .range([margin.left, width - margin.right]);
-
-    // The Y axis is given as the decibel value which is already a common log
-    // we need to keep the scale as linear. I think ... 
-    let yScale = d3.scaleLinear()
-        .domain([-12, 0]) //d3.extent(data, function(d) {return d.y}))
-        .range([height - margin.top, margin.top]);
-    // Also, we need to decide what an appropriate range is ...
-    // At some point in the future, I will likely have data which shows
-    // an active filter that results in a dBv gain.
-
-    // set x and y values for line generator
-    let line = d3.line()
-        .x(function(item, incr) { return xScale(item.x); })
-        .y(function(item, incr) { return yScale(item.y); })
-        .curve(d3.curveMonotoneX)
-    
-    let svg = d3.create("svg");
-
-    svg.attr("width", width)
-        .attr("height", height)
-        .append("g");
-
-    // XXX Need to add labels for both Axis.
-
-    var tooltip = d3.select("body").append("div")   
-        .attr("class", "tooltip")               
-        .style("opacity", 0);
-
-    // X Axis - Note frequency and Note Name
-    let xVals = [];
-    data.forEach(item => xVals.push(item.x));
-
-    let getXLabel = (d, i) => data[i].xLabel; 
-    var xAxis = d3.axisBottom()
-        .scale(xScale)
-        .tickValues(xVals)
-        .tickSize(5)
-        .tickFormat(getXLabel);
-
-    svg.append("g")
-        .attr("class", "x axis")
-        .attr("transform", "translate(0," + (height - margin.bottom) + ")")
-        .call(xAxis); // XXX XXX XXX Change to `height - margin.bottom`
-
-    // Y Axis - Voltage Change in dB
-    let yVals = [];
-    data.forEach(item => yVals.push(item.y));
-
-    let getYLabel = (d, i) => String(d).concat("dB");
-
-    let yAxis = d3.axisLeft()
-        .scale(yScale)
-        .tickSize(5)
-        .tickFormat(getYLabel);
-
-    svg.append("g")
-        .attr("class", "y axis")
-        .attr("transform", "translate(" + margin.left + ",0)")
-        .call(yAxis);
-
-
-    // 9. Append the path, bind the data, and call the line generator 
-    svg.append("path")
-        .datum(data) // 10. Binds data to the line 
-        .attr("class", "line") // Assign a class for styling 
-        .attr("d", line); // 11. Calls the line generator 
-
-    let dotSize = [4, 8];
-
-    // This looks gross and weird.
-    // I am not sure exactly what I want yet.
-    //
-    // More ideas; make a circle inside of a circle in order
-    // to increase the mouse over area of each point.
-    // Or, think about making verticle bars which, when mouse
-    // over happens, they show the hint for a particular note.
-    svg.selectAll(".dot")
-        .data(data)
-        .enter().append("circle") // Uses the enter().append() method
-        // Storing data here. Not sure this is the best?
-        .attr("note", (d, i) => getXLabel(d, i))
-        .attr("freq", (d, i) => d.x)
-        .attr("db", (d, i) => getYLabel(d.y, i))
-        // Display elements.
-        .attr("class", "dot") // Assign a class for styling
-        .attr("cx", (d, i) => xScale(d.x))
-        .attr("cy", (d, i) => yScale(d.y))
-        .attr("r", dotSize[0])
-        .on("mouseover", function(a) { 
-            console.log(
-                this.getAttribute("note") + "(" +
-                this.getAttribute("freq") + "Hz) " +
-                this.getAttribute("db") + ""
-            );
-            this.setAttribute("r", dotSize[1]);
-
-            let comment = this.getAttribute("note") + "(" +
-                this.getAttribute("freq") + "Hz) " +
-                this.getAttribute("db") + ""
-            tooltip.transition().duration(200).style("opacity", .9);      
-            tooltip.html(comment)
-                .style("left", (d3.select(this).attr("cx") + 20) + "px")
-                .style("top", (d3.select(this).attr("cy") - 20) + "px");
-        })
-        .on("mouseout", function() {  
-            tooltip.transition().duration(200).style("opacity", 0);
-            this.setAttribute("r", dotSize[0]);
-        });
-
-    // So, .node() return the actual DOM node instead of the D3 representation.
-    return svg;
-}
-
 

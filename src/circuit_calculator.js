@@ -84,7 +84,8 @@ export class CircuitGraph extends React.Component {
          *  - I am not sure how to handle transistors yet.
          *  - A transistor is a component with two nodes in one?
          *  - Also, diodes ... I might need a voltage and current solver?
-         *
+         *  - https://www.khanacademy.org/science/electrical-engineering/ee-circuit-analysis-topic/ee-dc-circuit-analysis/a/ee-superposition
+         *  ^ this is a good read
          */
 
         this.state = {

@@ -13,6 +13,9 @@ $test: darken($color-accent-yel, 1%)
 body
     @apply text-gray-700 bg-gray-50
 
+div
+    //@apply border
+
 #root
     @apply justify-center flex
 
@@ -38,5 +41,15 @@ body
     stroke: steelblue
 
 .textfield
-    @apply border border-gray-400 ring-gray-600 rounded-sm shadow-sm pl-2 pr-2
+    @apply border border-gray-400 ring-gray-600 rounded-sm shadow-sm pl-2 pr-2 w-24
     @apply focus:outline-none focus:ring-1 focus:ring-gray-500 focus:border-transparent focus:shadow-sm
+
+.transistor_gain_calc
+    width: 900px
+
+.transistor_gain_calc .textfield
+    @apply border border-gray-400 ring-gray-600 rounded-sm shadow-sm pl-2 pr-2 w-32
+    @apply focus:outline-none focus:ring-1 focus:ring-gray-500 focus:border-transparent focus:shadow-sm
+
+.step_container
+    @apply pb-3 block
